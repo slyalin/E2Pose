@@ -104,7 +104,7 @@ class E2PoseInference_by_pb(E2PoseInference):
         self.ov_model = compile_model('/home/slyalin/jupyter/openvino-main/E2Pose/frozen_model.xml')
 
         # just convert_model hangs, probably I have broken internals
-        #self.ov_model = convert_model(graph_def)
+        #self.ov_model = compile_model(convert_model(graph_def))
 
         print(' ++++++++++++++ converted to OV ++++++++++++++++ ')
         self.persistent_sess = tf.compat.v1.Session(graph=self.graph, config=None)

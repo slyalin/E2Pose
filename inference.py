@@ -10,6 +10,9 @@ import time
 import numpy as np
 import tensorflow as tf
 
+from openvino.runtime import compile_model
+from openvino.tools.mo import convert_model
+
 #from tensorflow.python.compiler.tensorrt import trt_convert as trt
 from tensorflow.python.saved_model import tag_constants
 from tensorflow.python.framework import convert_to_constants
@@ -95,6 +98,15 @@ class E2PoseInference_by_pb(E2PoseInference):
         
         self.graph = tf.compat.v1.get_default_graph()
         tf.import_graph_def(graph_def, name='e2pose')
+        print(' ++++++++++++++ started OV model conversion/loading ++++ ')
+
+        #!mo --input_model ./pretrains/COCO/ResNet101/512x512/frozen_model.pb
+        self.ov_model = compile_model('/home/slyalin/jupyter/openvino-main/E2Pose/frozen_model.xml')
+
+        # just convert_model hangs, probably I have broken internals
+        #self.ov_model = convert_model(graph_def)
+
+        print(' ++++++++++++++ converted to OV ++++++++++++++++ ')
         self.persistent_sess = tf.compat.v1.Session(graph=self.graph, config=None)
 
         input_op           = [op for op in self.graph.get_operations() if 'inputimg' in op.name][0]
@@ -102,13 +114,21 @@ class E2PoseInference_by_pb(E2PoseInference):
         out_kpt_op         = [op for op in self.graph.get_operations() if 'kvxy/concat' in op.name][-1]
         self.tensor_image  = input_op.outputs[0]
         self.tensor_output = [out_pv_op.outputs[0], out_kpt_op.outputs[0]]
+
+        # ensure that this is not used
+        self.persistent_sess = None
+        self.graph = None
     
     @property
     def inputs(self):
         return [self.tensor_image]
 
     def __call__(self, x, training=False):
-        return self.persistent_sess.run(self.tensor_output, feed_dict={self.tensor_image: x})
+        # OV
+        results = self.ov_model(x)
+        return [results[self.ov_model.output(output.name)] for output in self.tensor_output]
+        # TF
+        #return self.persistent_sess.run(self.tensor_output, feed_dict={self.tensor_image: x})
     
 
 def load_model(args):
